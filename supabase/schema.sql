@@ -33,9 +33,21 @@ create table if not exists public.pet_media (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.guestbook_entries (
+  id uuid primary key default gen_random_uuid(),
+  pet_id uuid not null references public.pets(id) on delete cascade,
+  author_id uuid not null references public.profiles(id) on delete cascade,
+  author_name text not null check (char_length(author_name) between 1 and 80),
+  message text not null check (char_length(message) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists guestbook_entries_pet_created_idx on public.guestbook_entries (pet_id, created_at desc);
+
 alter table public.profiles enable row level security;
 alter table public.pets enable row level security;
 alter table public.pet_media enable row level security;
+alter table public.guestbook_entries enable row level security;
 
 create policy "profiles own read" on public.profiles for select using (auth.uid() = id);
 create policy "profiles own update" on public.profiles for update using (auth.uid() = id);
@@ -55,6 +67,13 @@ create policy "public media metadata or own read" on public.pet_media for select
 );
 create policy "owners create media" on public.pet_media for insert with check (auth.uid() = owner_id);
 create policy "owners delete media" on public.pet_media for delete using (auth.uid() = owner_id);
+create policy "visible memorial guestbook read" on public.guestbook_entries for select using (
+  exists(select 1 from public.pets where pets.id = pet_id and (pets.is_public or pets.owner_id = auth.uid()))
+);
+create policy "signed in visitors write guestbook" on public.guestbook_entries for insert to authenticated with check (
+  auth.uid() = author_id and exists(select 1 from public.pets where pets.id = pet_id and (pets.is_public or pets.owner_id = auth.uid()))
+);
+create policy "authors delete own guestbook entries" on public.guestbook_entries for delete to authenticated using (auth.uid() = author_id);
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
 begin insert into public.profiles(id, display_name) values(new.id, coalesce(new.raw_user_meta_data->>'full_name', new.email)); return new; end; $$;

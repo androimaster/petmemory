@@ -96,7 +96,7 @@ function renderPets(items) {
   grid.innerHTML = items.map((pet) => {
     const isMine = Boolean(currentUser && pet.owner_id === currentUser.id);
     const visibility = isMine ? `내 추모관 · ${pet.is_public ? "공개" : "비공개"}` : "공개";
-    return `<article class="pet-card"><div class="pet-photo" style="background-image:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=900&q=80")}')"><span>${visibility}</span></div><div class="pet-info"><div><h3>${escapeHtml(pet.name)}</h3><small>${year(pet.born_on)} — ${year(pet.passed_on)}</small></div><p>${escapeHtml(pet.story || "소중한 기억이 별처럼 머물고 있어요.")}</p><footer><span>#${escapeHtml(pet.breed || "반려견")}</span><button data-star="${pet.id}">${isMine ? "추모관 관리 →" : "✦ 별 남기기"}</button></footer></div></article>`;
+    return `<article class="pet-card" data-pet-card="${pet.id}" tabindex="0" role="button" aria-label="${escapeHtml(pet.name)} 추모관 보기"><div class="pet-photo" style="background-image:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=900&q=80")}')"><span>${visibility}</span></div><div class="pet-info"><div><h3>${escapeHtml(pet.name)}</h3><small>${year(pet.born_on)} — ${year(pet.passed_on)}</small></div><p>${escapeHtml(pet.story || "소중한 기억이 별처럼 머물고 있어요.")}</p><footer><span>#${escapeHtml(pet.breed || "반려견")}</span><button type="button" data-open-memorial="${pet.id}">${isMine ? "추모관 관리 →" : "추모관 보기 →"}</button></footer></div></article>`;
   }).join("");
 }
 
@@ -141,6 +141,94 @@ async function openCreateDialog() {
   $("#petDialog").showModal();
 }
 
+async function uploadPetFiles(petId, files) {
+  let coverPath = null;
+  for (let index = 0; index < files.length; index++) {
+    const file = files[index];
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${currentUser.id}/${petId}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await sbClient.storage.from("pet-media").upload(path, file, { contentType:file.type, upsert:false });
+    if (uploadError) { toast(`${file.name} 업로드에 실패했어요.`); continue; }
+    const { error: metadataError } = await sbClient.from("pet_media").insert({
+      pet_id:petId, owner_id:currentUser.id, storage_path:path,
+      media_type:file.type.startsWith("video/") ? "video" : "image",
+      file_name:file.name, file_size:file.size, sort_order:index,
+    });
+    if (metadataError) console.error(metadataError);
+    if (!coverPath && file.type.startsWith("image/")) coverPath = path;
+  }
+  return coverPath;
+}
+
+const displayDate = (value) => value ? new Intl.DateTimeFormat("ko-KR", { dateStyle:"medium" }).format(new Date(value)) : "";
+
+async function openMemorial(petId) {
+  const pet = publicPets.find(item => item.id === petId);
+  if (!pet) { toast("추모관 정보를 찾을 수 없어요."); return; }
+  const dialog = $("#memorialDialog");
+  const detail = $("#memorialDetail");
+  detail.innerHTML = '<div class="detail-loading">추억을 불러오고 있어요…</div>';
+  if (!dialog.open) dialog.showModal();
+
+  let media = [];
+  let entries = [];
+  let guestbookReady = true;
+  if (sbClient && !pet.id.startsWith("demo-")) {
+    const [mediaResult, guestbookResult] = await Promise.all([
+      sbClient.from("pet_media").select("id,storage_path,media_type,file_name,created_at").eq("pet_id", pet.id).order("sort_order"),
+      sbClient.from("guestbook_entries").select("id,author_id,author_name,message,created_at").eq("pet_id", pet.id).order("created_at", { ascending:false }).limit(50),
+    ]);
+    if (mediaResult.error) console.error(mediaResult.error);
+    if (guestbookResult.error) { guestbookReady = false; console.warn(guestbookResult.error); }
+    entries = guestbookResult.data || [];
+    media = await Promise.all((mediaResult.data || []).map(async item => {
+      const { data } = await sbClient.storage.from("pet-media").createSignedUrl(item.storage_path, 3600);
+      return { ...item, url:data?.signedUrl || "" };
+    }));
+  }
+
+  const isOwner = Boolean(currentUser && pet.owner_id === currentUser.id);
+  const gallery = media.length ? media.map(item => item.media_type === "video"
+    ? `<video controls preload="metadata" src="${escapeHtml(item.url)}" aria-label="${escapeHtml(item.file_name)}"></video>`
+    : `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(pet.name)}의 추억 사진">`).join("")
+    : '<div class="gallery-empty">아직 등록된 사진이 없어요.</div>';
+  const guestbook = entries.length ? entries.map(entry => `<article><div><b>${escapeHtml(entry.author_name)}</b><time>${displayDate(entry.created_at)}</time></div><p>${escapeHtml(entry.message)}</p></article>`).join("")
+    : '<p class="guestbook-empty">첫 번째 따뜻한 마음을 남겨 주세요.</p>';
+  const guestbookForm = !guestbookReady
+    ? '<p class="feature-notice">방명록 준비가 필요합니다. 관리자에게 문의해 주세요.</p>'
+    : currentUser
+      ? '<form id="guestbookForm" class="guestbook-form"><label for="guestbookMessage">방명록 남기기</label><textarea id="guestbookMessage" name="message" maxlength="500" required placeholder="따뜻한 마음을 전해 주세요"></textarea><button class="primary small" type="submit">마음 남기기</button></form>'
+      : '<button class="secondary full" type="button" data-detail-login>로그인하고 방명록 남기기</button>';
+
+  detail.innerHTML = `<header class="detail-hero" style="--cover:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=1200&q=80")}')"><span>${isOwner ? "내 추모관" : "별빛 추모관"}</span><h2>${escapeHtml(pet.name)}</h2><p>${escapeHtml(pet.breed || "사랑스러운 반려견")} · ${year(pet.born_on)} — ${year(pet.passed_on)}</p></header>
+    <section class="detail-story"><span class="eyebrow">우리 아이 이야기</span><p>${escapeHtml(pet.story || "함께한 소중한 순간을 오래 기억합니다.")}</p></section>
+    <section class="detail-section"><div class="detail-title"><div><span class="eyebrow">사진과 영상</span><h3>함께한 순간</h3></div>${isOwner ? '<form id="detailMediaForm"><label class="secondary small">사진 추가<input name="media" type="file" accept="image/*,video/*" multiple required></label></form>' : ""}</div><div class="detail-gallery">${gallery}</div></section>
+    <section class="detail-section guestbook"><div class="detail-title"><div><span class="eyebrow">함께 기억해요</span><h3>방명록</h3></div><small>${entries.length}개의 마음</small></div>${guestbookForm}<div class="guestbook-list">${guestbook}</div></section>`;
+
+  $("#detailMediaForm")?.addEventListener("change", async event => {
+    const files = [...event.currentTarget.elements.media.files];
+    if (!files.length) return;
+    toast("사진과 영상을 추가하고 있어요.");
+    const coverPath = await uploadPetFiles(pet.id, files);
+    if (coverPath && !pet.cover_path) await sbClient.from("pets").update({ cover_path:coverPath }).eq("id", pet.id);
+    await loadVisiblePets();
+    await openMemorial(pet.id);
+    toast("새로운 추억을 추가했어요.");
+  });
+  $("#guestbookForm")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const message = new FormData(event.currentTarget).get("message")?.toString().trim();
+    if (!message) return;
+    const metadata = currentUser.user_metadata || {};
+    const authorName = metadata.full_name || metadata.name || currentUser.email?.split("@")[0] || "별빛 친구";
+    const { error } = await sbClient.from("guestbook_entries").insert({ pet_id:pet.id, author_id:currentUser.id, author_name:authorName, message });
+    if (error) { toast(`방명록 오류: ${error.message}`); return; }
+    await openMemorial(pet.id);
+    toast("따뜻한 마음을 남겼어요.");
+  });
+  $("[data-detail-login]")?.addEventListener("click", () => { dialog.close(); $("#authDialog").showModal(); });
+}
+
 async function createPet(event) {
   event.preventDefault();
   if (!sbClient || !currentUser) { toast("Supabase 연결 후 실제 저장이 시작됩니다."); return; }
@@ -150,21 +238,30 @@ async function createPet(event) {
   const pet = { id:petId, owner_id:currentUser.id, name:formData.get("name"), breed:formData.get("breed") || null, born_on:formData.get("born_on") || null, passed_on:formData.get("passed_on") || null, story:formData.get("story") || null, is_public:formData.get("is_public") === "on" };
   const { error: petError } = await sbClient.from("pets").insert(pet);
   if (petError) { progress.hidden = true; toast(petError.message); return; }
-  let coverUrl = null;
-  for (let index=0; index<files.length; index++) {
-    const file = files[index]; const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_"); const path = `${currentUser.id}/${petId}/${crypto.randomUUID()}-${safeName}`;
-    const { error } = await sbClient.storage.from("pet-media").upload(path, file, { contentType:file.type, upsert:false });
-    if (error) { toast(`${file.name} 업로드에 실패했어요.`); continue; }
-    if (!coverUrl && file.type.startsWith("image/")) coverUrl = path;
-    await sbClient.from("pet_media").insert({ pet_id:petId, owner_id:currentUser.id, storage_path:path, media_type:file.type.startsWith("video/") ? "video" : "image", file_name:file.name, file_size:file.size, sort_order:index });
-  }
-  if (coverUrl) await sbClient.from("pets").update({ cover_path:coverUrl }).eq("id", petId);
-  progress.hidden = true; form.reset(); $("#petDialog").close(); toast("소중한 추모관이 만들어졌어요."); loadVisiblePets();
+  progress.hidden = true;
+  form.reset();
+  $("#petDialog").close();
+  publicPets = [{ ...pet, cover_url:null }, ...publicPets.filter(item => item.id !== petId)];
+  renderPets(publicPets);
+  location.hash = "memorials";
+  toast(files.length ? "추모관을 만들었어요. 사진을 이어서 등록하고 있어요." : "소중한 추모관이 만들어졌어요.");
+  const coverPath = await uploadPetFiles(petId, files);
+  if (coverPath) await sbClient.from("pets").update({ cover_path:coverPath }).eq("id", petId);
+  await loadVisiblePets();
 }
 
 $("#searchInput").addEventListener("input", (event) => { const q = event.target.value.trim().toLowerCase(); renderPets(publicPets.filter(p => [p.name,p.breed].some(v => (v || "").toLowerCase().includes(q)))); });
 $("#googleLogin").addEventListener("click", signInWithGoogle);
 $("#petForm").addEventListener("submit", createPet);
+$("#memorialGrid").addEventListener("click", event => {
+  const target = event.target.closest("[data-open-memorial], [data-pet-card]");
+  if (target) openMemorial(target.dataset.openMemorial || target.dataset.petCard);
+});
+$("#memorialGrid").addEventListener("keydown", event => {
+  if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-pet-card]")) {
+    event.preventDefault(); openMemorial(event.target.dataset.petCard);
+  }
+});
 $("#upgradeButton").addEventListener("click", () => toast("결제 기능은 다음 단계에서 연결할 수 있어요."));
 $("#logoutButton").addEventListener("click", async () => {
   if (!sbClient) return;
