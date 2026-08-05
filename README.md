@@ -7,7 +7,7 @@
 1. Supabase에서 새 프로젝트를 만듭니다.
 2. SQL Editor에서 `supabase/schema.sql` 전체를 실행합니다.
 3. Authentication → Providers에서 Google을 활성화합니다.
-4. 로컬에서는 `supabase-config.example.js`를 `supabase-config.js`로 복사한 후 Project URL과 anon public key를 입력합니다.
+4. 현재 프로젝트의 Publishable Key 설정은 `supabase-config.example.js`에 연결되어 있습니다.
 5. Google Cloud와 Supabase의 허용된 Redirect URL에 로컬 주소 및 GitHub Pages 주소를 등록합니다.
 
 `anon` 키는 브라우저 사용을 전제로 한 공개 키입니다. 데이터 보호는 `supabase/schema.sql`의 Row Level Security 정책으로 처리되며 service role 키는 절대 브라우저나 GitHub Pages에 넣지 않습니다.
