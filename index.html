@@ -9,16 +9,25 @@
   <meta property="og:image" content="public/og.png">
   <title>별이 된 친구 | 반려견 온라인 추모관</title>
   <link rel="stylesheet" href="styles.css?v=20260805-2">
+  <link rel="stylesheet" href="account.css?v=20260805-1">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="supabase-config.example.js" defer></script>
   <script src="supabase-config.js" defer onerror="this.remove()"></script>
-  <script src="app.js?v=20260805-3" defer></script>
+  <script src="app.js?v=20260805-4" defer></script>
 </head>
 <body>
   <header class="site-header">
     <a class="brand" href="#top"><span class="paw">●</span><span>별이 된 친구</span></a>
     <nav><a href="#memorials">추모관 둘러보기</a><a href="#how">이용 방법</a><a href="#plans">이용 요금</a></nav>
-    <div class="header-actions"><button class="ghost" data-action="login">로그인</button><button class="primary small" data-action="create">추모관 만들기</button></div>
+    <div class="header-actions">
+      <button class="ghost" id="loginButton" data-action="login">로그인</button>
+      <div class="user-account" id="userAccount" hidden>
+        <img id="userAvatar" alt="" hidden>
+        <span><b id="userName"></b><small id="userEmail"></small></span>
+        <button id="logoutButton" type="button">로그아웃</button>
+      </div>
+      <button class="primary small" data-action="create">추모관 만들기</button>
+    </div>
   </header>
 
   <main>

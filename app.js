@@ -17,6 +17,32 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const toast = (message) => { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 3200); };
 const year = (date) => date ? date.slice(0,4) : "";
 
+function updateAuthUI(user) {
+  const loginButton = $("#loginButton");
+  const account = $("#userAccount");
+  const avatar = $("#userAvatar");
+  if (!user) {
+    loginButton.hidden = false;
+    account.hidden = true;
+    return;
+  }
+
+  const metadata = user.user_metadata || {};
+  const name = metadata.full_name || metadata.name || user.email?.split("@")[0] || "회원";
+  loginButton.hidden = true;
+  account.hidden = false;
+  $("#userName").textContent = name;
+  $("#userEmail").textContent = user.email || "";
+  if (metadata.avatar_url || metadata.picture) {
+    avatar.src = metadata.avatar_url || metadata.picture;
+    avatar.alt = `${name} 프로필 사진`;
+    avatar.hidden = false;
+    avatar.onerror = () => { avatar.hidden = true; };
+  } else {
+    avatar.hidden = true;
+  }
+}
+
 function showOAuthError() {
   const params = new URLSearchParams(location.hash.slice(1));
   const message = params.get("error_description");
@@ -87,6 +113,12 @@ $("#searchInput").addEventListener("input", (event) => { const q = event.target.
 $("#googleLogin").addEventListener("click", signInWithGoogle);
 $("#petForm").addEventListener("submit", createPet);
 $("#upgradeButton").addEventListener("click", () => toast("결제 기능은 다음 단계에서 연결할 수 있어요."));
+$("#logoutButton").addEventListener("click", async () => {
+  if (!sbClient) return;
+  const { error } = await sbClient.auth.signOut();
+  if (error) toast(`로그아웃 오류: ${error.message}`);
+  else toast("안전하게 로그아웃했어요.");
+});
 $$('[data-action="login"]').forEach(button => button.addEventListener("click", () => $("#authDialog").showModal()));
 $$('[data-action="create"]').forEach(button => button.addEventListener("click", openCreateDialog));
 $$('[data-action="upgrade"]').forEach(button => button.addEventListener("click", () => $("#upgradeDialog").showModal()));
@@ -94,8 +126,16 @@ $$('[data-close]').forEach(button => button.addEventListener("click", () => butt
 $$('dialog').forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); }));
 
 if (sbClient) {
-  sbClient.auth.getSession().then(({ data }) => { currentUser = data.session?.user || null; });
-  sbClient.auth.onAuthStateChange((_event, session) => { currentUser = session?.user || null; });
+  sbClient.auth.getSession().then(({ data }) => {
+    currentUser = data.session?.user || null;
+    updateAuthUI(currentUser);
+  });
+  sbClient.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+    updateAuthUI(currentUser);
+  });
+} else {
+  updateAuthUI(null);
 }
 loadPublicPets();
 showOAuthError();
