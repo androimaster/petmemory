@@ -32,6 +32,13 @@
     color: #415a48;
     font-size: 11px;
   }
-  .user-account { padding: 4px; }
-  .user-account > span, .user-account button { display: none; }
+  .user-account { gap: 5px; padding: 3px 4px; }
+  .user-account > span { display: none; }
+  .user-account button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 31px;
+    padding: 7px 9px;
+    font-size: 9px;
+  }
 }
