@@ -263,11 +263,18 @@ $("#memorialGrid").addEventListener("keydown", event => {
   }
 });
 $("#upgradeButton").addEventListener("click", () => toast("결제 기능은 다음 단계에서 연결할 수 있어요."));
-$("#logoutButton").addEventListener("click", async () => {
+$("#logoutButton").addEventListener("click", () => $("#logoutDialog").showModal());
+$("#confirmLogoutButton").addEventListener("click", async event => {
   if (!sbClient) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = "로그아웃 중…";
   const { error } = await sbClient.auth.signOut();
-  if (error) toast(`로그아웃 오류: ${error.message}`);
-  else toast("안전하게 로그아웃했어요.");
+  button.disabled = false;
+  button.textContent = "로그아웃";
+  if (error) { toast(`로그아웃 오류: ${error.message}`); return; }
+  $("#logoutDialog").close();
+  toast("안전하게 로그아웃했어요.");
 });
 $$('[data-action="login"]').forEach(button => button.addEventListener("click", () => $("#authDialog").showModal()));
 $$('[data-action="create"]').forEach(button => button.addEventListener("click", openCreateDialog));
