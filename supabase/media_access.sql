@@ -2,6 +2,23 @@
 -- Supabase SQL Editor에서 한 번 실행하세요.
 alter table public.pet_media enable row level security;
 
+create or replace function public.can_manage_pet_media(target_pet_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists(
+    select 1 from public.pets
+    where pets.id::text = target_pet_id
+      and pets.owner_id = auth.uid()
+  );
+$$;
+
+revoke all on function public.can_manage_pet_media(text) from public;
+grant execute on function public.can_manage_pet_media(text) to authenticated;
+
 drop policy if exists "public media metadata or own read" on public.pet_media;
 create policy "public media metadata or own read" on public.pet_media
 for select using (
@@ -13,10 +30,7 @@ drop policy if exists "owners create media" on public.pet_media;
 create policy "owners create media" on public.pet_media
 for insert to authenticated with check (
   auth.uid() = owner_id
-  and exists(
-    select 1 from public.pets
-    where pets.id = pet_media.pet_id and pets.owner_id = auth.uid()
-  )
+  and public.can_manage_pet_media(pet_id::text)
 );
 
 drop policy if exists "owners upload pet media" on storage.objects;
@@ -24,11 +38,7 @@ create policy "owners upload pet media" on storage.objects
 for insert to authenticated with check (
   bucket_id = 'pet-media'
   and (storage.foldername(name))[1] = auth.uid()::text
-  and exists(
-    select 1 from public.pets
-    where pets.id::text = (storage.foldername(name))[2]
-      and pets.owner_id = auth.uid()
-  )
+  and public.can_manage_pet_media((storage.foldername(name))[2])
 );
 
 drop policy if exists "authorized reads pet media" on storage.objects;

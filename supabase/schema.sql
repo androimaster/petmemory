@@ -67,10 +67,18 @@ create policy "owners delete pets" on public.pets for delete using (auth.uid() =
 create policy "public media metadata or own read" on public.pet_media for select using (
   auth.uid() = owner_id or exists(select 1 from public.pets where pets.id = pet_id and pets.is_public)
 );
+create or replace function public.can_manage_pet_media(target_pet_id text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists(
+    select 1 from public.pets
+    where pets.id::text = target_pet_id and pets.owner_id = auth.uid()
+  );
+$$;
+revoke all on function public.can_manage_pet_media(text) from public;
+grant execute on function public.can_manage_pet_media(text) to authenticated;
+
 create policy "owners create media" on public.pet_media for insert with check (
-  auth.uid() = owner_id and exists(
-    select 1 from public.pets where pets.id = pet_media.pet_id and pets.owner_id = auth.uid()
-  )
+  auth.uid() = owner_id and public.can_manage_pet_media(pet_id::text)
 );
 create policy "owners delete media" on public.pet_media for delete using (auth.uid() = owner_id);
 create policy "visible memorial guestbook read" on public.guestbook_entries for select using (
@@ -93,10 +101,7 @@ on conflict (id) do update set public = false, file_size_limit = excluded.file_s
 create policy "owners upload pet media" on storage.objects for insert to authenticated with check (
   bucket_id = 'pet-media'
   and (storage.foldername(name))[1] = auth.uid()::text
-  and exists(
-    select 1 from public.pets
-    where pets.id::text = (storage.foldername(name))[2] and pets.owner_id = auth.uid()
-  )
+  and public.can_manage_pet_media((storage.foldername(name))[2])
 );
 create or replace function public.can_read_public_pet_media(object_name text)
 returns boolean language sql stable security definer set search_path = public as $$

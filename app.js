@@ -17,7 +17,7 @@ let petLoadSequence = 0;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const toast = (message) => { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 3200); };
+const toast = (message, duration = 3200) => { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), duration); };
 const year = (date) => date ? date.slice(0,4) : "";
 const userDisplayName = (user) => {
   const metadata = user?.user_metadata || {};
@@ -260,7 +260,9 @@ async function openMemorial(petId) {
     if (uploadResult.coverPath && !pet.cover_path) await sbClient.from("pets").update({ cover_path:uploadResult.coverPath }).eq("id", pet.id);
     await loadVisiblePets();
     await openMemorial(pet.id);
-    toast(uploadResult.errors.length ? `${uploadResult.uploadedCount}개를 추가했고 일부 파일은 실패했어요.` : "새로운 추억을 추가했어요.");
+    toast(uploadResult.errors.length
+      ? `사진 추가 실패: ${uploadResult.errors[0]}`
+      : `${uploadResult.uploadedCount}개의 새로운 추억을 추가했어요.`, uploadResult.errors.length ? 7000 : 3200);
   });
   $("#guestbookForm")?.addEventListener("submit", async event => {
     event.preventDefault();
@@ -328,7 +330,7 @@ async function createPet(event) {
   const uploadResult = await uploadPetFiles(petId, files);
   if (uploadResult.coverPath) await sbClient.from("pets").update({ cover_path:uploadResult.coverPath }).eq("id", petId);
   await loadVisiblePets();
-  if (uploadResult.errors.length) toast(`추모관은 만들었지만 ${uploadResult.errors.length}개 파일을 저장하지 못했어요. 상세 화면에서 다시 추가해 주세요.`);
+  if (uploadResult.errors.length) toast(`추모관은 만들었지만 사진 저장에 실패했어요: ${uploadResult.errors[0]}`, 7000);
   if (previewCover) URL.revokeObjectURL(previewCover);
 }
 
