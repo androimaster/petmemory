@@ -32,13 +32,27 @@ for insert to authenticated with check (
 );
 
 drop policy if exists "authorized reads pet media" on storage.objects;
+create or replace function public.can_read_public_pet_media(object_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists(
+    select 1 from public.pets
+    where pets.id::text = (storage.foldername(object_name))[2]
+      and pets.is_public = true
+  );
+$$;
+
+revoke all on function public.can_read_public_pet_media(text) from public;
+grant execute on function public.can_read_public_pet_media(text) to anon, authenticated;
+
 create policy "authorized reads pet media" on storage.objects
 for select using (
   bucket_id = 'pet-media' and (
     (storage.foldername(name))[1] = auth.uid()::text
-    or exists(
-      select 1 from public.pets
-      where pets.id = ((storage.foldername(name))[2])::uuid and pets.is_public
-    )
+    or public.can_read_public_pet_media(name)
   )
 );
