@@ -1,3 +1,5 @@
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
 (() => {
 const demoPets = [
   { id:"demo-1", name:"몽이", breed:"말티즈", born_on:"2012-03-12", passed_on:"2025-01-07", story:"작은 발로 우리 집에 가장 큰 사랑을 남겨준 몽이", cover_url:"https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=900&q=85" },
@@ -8,7 +10,7 @@ const demoPets = [
 
 const config = window.SUPABASE_CONFIG || {};
 const configured = Boolean(config.url && config.anonKey && !config.url.includes("YOUR_") && !config.anonKey.includes("YOUR_"));
-const sbClient = configured ? window.supabase.createClient(config.url, config.anonKey) : null;
+const sbClient = configured ? createClient(config.url, config.anonKey) : null;
 let currentUser = null;
 let publicPets = [];
 let petLoadSequence = 0;
@@ -128,8 +130,13 @@ async function signInWithGoogle() {
 async function openCreateDialog() {
   if (!sbClient) { $("#petDialog").showModal(); toast("현재는 화면 미리보기 모드입니다."); return; }
   if (!currentUser) { $("#authDialog").showModal(); return; }
-  const { count } = await sbClient.from("pets").select("id", { count:"exact", head:true }).eq("owner_id", currentUser.id);
-  const { data: profile } = await sbClient.from("profiles").select("plan").eq("id", currentUser.id).maybeSingle();
+  toast("추모관을 만들 수 있는지 확인하고 있어요.");
+  const [{ count, error: countError }, { data: profile, error: profileError }] = await Promise.all([
+    sbClient.from("pets").select("id", { count:"exact", head:true }).eq("owner_id", currentUser.id),
+    sbClient.from("profiles").select("plan").eq("id", currentUser.id).maybeSingle(),
+  ]);
+  if (countError) { toast(`추모관 확인 오류: ${countError.message}`); return; }
+  if (profileError) console.warn("프로필 요금제 확인 오류", profileError);
   if ((count || 0) >= 1 && (profile?.plan || "free") === "free") { $("#upgradeDialog").showModal(); return; }
   $("#petDialog").showModal();
 }
