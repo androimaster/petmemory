@@ -23,6 +23,15 @@
 .user-account button:hover { background: #e5ebe4; color: #415a48; }
 
 @media (max-width: 650px) {
+  .header-actions #loginButton:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    padding: 9px 11px;
+    border: 1px solid #d9dfd9;
+    background: #fff;
+    color: #415a48;
+    font-size: 11px;
+  }
   .user-account { padding: 4px; }
   .user-account > span, .user-account button { display: none; }
 }
