@@ -7,7 +7,7 @@ const demoPets = [
 
 const config = window.SUPABASE_CONFIG || {};
 const configured = Boolean(config.url && config.anonKey && !config.url.includes("YOUR_") && !config.anonKey.includes("YOUR_"));
-const supabase = configured ? window.supabase.createClient(config.url, config.anonKey) : null;
+const sbClient = configured ? window.supabase.createClient(config.url, config.anonKey) : null;
 let currentUser = null;
 let publicPets = [];
 
@@ -26,12 +26,12 @@ function renderPets(items) {
 function escapeHtml(value="") { const el = document.createElement("div"); el.textContent = value; return el.innerHTML.replaceAll("'", "&#39;"); }
 
 async function loadPublicPets() {
-  if (!supabase) { publicPets = demoPets; renderPets(publicPets); return; }
-  const { data, error } = await supabase.from("pets").select("id,name,breed,born_on,passed_on,story,cover_path").eq("is_public", true).order("created_at", { ascending:false }).limit(40);
+  if (!sbClient) { publicPets = demoPets; renderPets(publicPets); return; }
+  const { data, error } = await sbClient.from("pets").select("id,name,breed,born_on,passed_on,story,cover_path").eq("is_public", true).order("created_at", { ascending:false }).limit(40);
   if (error) { console.error(error); publicPets = demoPets; toast("Supabase 연결을 확인해 주세요. 예시 추모관을 보여드려요."); } else {
     publicPets = await Promise.all(data.map(async pet => {
       if (!pet.cover_path) return pet;
-      const { data: signed } = await supabase.storage.from("pet-media").createSignedUrl(pet.cover_path, 3600);
+      const { data: signed } = await sbClient.storage.from("pet-media").createSignedUrl(pet.cover_path, 3600);
       return { ...pet, cover_url:signed?.signedUrl || null };
     }));
   }
@@ -39,38 +39,38 @@ async function loadPublicPets() {
 }
 
 async function signInWithGoogle() {
-  if (!supabase) { toast("supabase-config.js에 프로젝트 정보를 입력해 주세요."); return; }
-  const { error } = await supabase.auth.signInWithOAuth({ provider:"google", options:{ redirectTo: config.redirectUrl || location.href } });
+  if (!sbClient) { toast("supabase-config.js에 프로젝트 정보를 입력해 주세요."); return; }
+  const { error } = await sbClient.auth.signInWithOAuth({ provider:"google", options:{ redirectTo: config.redirectUrl || location.href } });
   if (error) toast(error.message);
 }
 
 async function openCreateDialog() {
-  if (!supabase) { $("#petDialog").showModal(); toast("현재는 화면 미리보기 모드입니다."); return; }
+  if (!sbClient) { $("#petDialog").showModal(); toast("현재는 화면 미리보기 모드입니다."); return; }
   if (!currentUser) { $("#authDialog").showModal(); return; }
-  const { count } = await supabase.from("pets").select("id", { count:"exact", head:true }).eq("owner_id", currentUser.id);
-  const { data: profile } = await supabase.from("profiles").select("plan").eq("id", currentUser.id).maybeSingle();
+  const { count } = await sbClient.from("pets").select("id", { count:"exact", head:true }).eq("owner_id", currentUser.id);
+  const { data: profile } = await sbClient.from("profiles").select("plan").eq("id", currentUser.id).maybeSingle();
   if ((count || 0) >= 1 && (profile?.plan || "free") === "free") { $("#upgradeDialog").showModal(); return; }
   $("#petDialog").showModal();
 }
 
 async function createPet(event) {
   event.preventDefault();
-  if (!supabase || !currentUser) { toast("Supabase 연결 후 실제 저장이 시작됩니다."); return; }
+  if (!sbClient || !currentUser) { toast("Supabase 연결 후 실제 저장이 시작됩니다."); return; }
   const form = event.currentTarget; const formData = new FormData(form); const files = formData.getAll("media").filter(file => file.size);
   const progress = $("#uploadProgress"); progress.hidden = false;
   const petId = crypto.randomUUID();
   const pet = { id:petId, owner_id:currentUser.id, name:formData.get("name"), breed:formData.get("breed") || null, born_on:formData.get("born_on") || null, passed_on:formData.get("passed_on") || null, story:formData.get("story") || null, is_public:formData.get("is_public") === "on" };
-  const { error: petError } = await supabase.from("pets").insert(pet);
+  const { error: petError } = await sbClient.from("pets").insert(pet);
   if (petError) { progress.hidden = true; toast(petError.message); return; }
   let coverUrl = null;
   for (let index=0; index<files.length; index++) {
     const file = files[index]; const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_"); const path = `${currentUser.id}/${petId}/${crypto.randomUUID()}-${safeName}`;
-    const { error } = await supabase.storage.from("pet-media").upload(path, file, { contentType:file.type, upsert:false });
+    const { error } = await sbClient.storage.from("pet-media").upload(path, file, { contentType:file.type, upsert:false });
     if (error) { toast(`${file.name} 업로드에 실패했어요.`); continue; }
     if (!coverUrl && file.type.startsWith("image/")) coverUrl = path;
-    await supabase.from("pet_media").insert({ pet_id:petId, owner_id:currentUser.id, storage_path:path, media_type:file.type.startsWith("video/") ? "video" : "image", file_name:file.name, file_size:file.size, sort_order:index });
+    await sbClient.from("pet_media").insert({ pet_id:petId, owner_id:currentUser.id, storage_path:path, media_type:file.type.startsWith("video/") ? "video" : "image", file_name:file.name, file_size:file.size, sort_order:index });
   }
-  if (coverUrl) await supabase.from("pets").update({ cover_path:coverUrl }).eq("id", petId);
+  if (coverUrl) await sbClient.from("pets").update({ cover_path:coverUrl }).eq("id", petId);
   progress.hidden = true; form.reset(); $("#petDialog").close(); toast("소중한 추모관이 만들어졌어요."); loadPublicPets();
 }
 
@@ -84,8 +84,8 @@ $$('[data-action="upgrade"]').forEach(button => button.addEventListener("click",
 $$('[data-close]').forEach(button => button.addEventListener("click", () => button.closest("dialog").close()));
 $$('dialog').forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); }));
 
-if (supabase) {
-  supabase.auth.getSession().then(({ data }) => { currentUser = data.session?.user || null; });
-  supabase.auth.onAuthStateChange((_event, session) => { currentUser = session?.user || null; });
+if (sbClient) {
+  sbClient.auth.getSession().then(({ data }) => { currentUser = data.session?.user || null; });
+  sbClient.auth.onAuthStateChange((_event, session) => { currentUser = session?.user || null; });
 }
 loadPublicPets();
