@@ -1,3 +1,4 @@
+(() => {
 const demoPets = [
   { id:"demo-1", name:"몽이", breed:"말티즈", born_on:"2012-03-12", passed_on:"2025-01-07", story:"작은 발로 우리 집에 가장 큰 사랑을 남겨준 몽이", cover_url:"https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=900&q=85" },
   { id:"demo-2", name:"초코", breed:"푸들", born_on:"2010-08-02", passed_on:"2024-10-22", story:"산책이라는 말만 들어도 온몸으로 웃어주던 아이", cover_url:"https://images.unsplash.com/photo-1594149929911-78975a43d4f5?auto=format&fit=crop&w=900&q=85" },
@@ -89,3 +90,4 @@ if (sbClient) {
   sbClient.auth.onAuthStateChange((_event, session) => { currentUser = session?.user || null; });
 }
 loadPublicPets();
+})();
