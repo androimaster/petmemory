@@ -2,5 +2,5 @@
 window.SUPABASE_CONFIG = window.SUPABASE_CONFIG || {
   url: "https://opwwsrpsqiojghaxjqmr.supabase.co",
   anonKey: "sb_publishable_2nIdKWLGCKN9hVzJBLGUUQ_PdORzUKW",
-  redirectUrl: window.location.origin + window.location.pathname,
+  redirectUrl: "https://androimaster.github.io/petmemory/",
 };

@@ -17,6 +17,14 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const toast = (message) => { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 3200); };
 const year = (date) => date ? date.slice(0,4) : "";
 
+function showOAuthError() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const message = params.get("error_description");
+  if (!message) return;
+  toast(`로그인 오류: ${message}`);
+  history.replaceState(null, "", location.pathname + location.search);
+}
+
 function renderPets(items) {
   const grid = $("#memorialGrid");
   $("#resultCount").textContent = `${items.length}명의 친구`;
@@ -90,4 +98,5 @@ if (sbClient) {
   sbClient.auth.onAuthStateChange((_event, session) => { currentUser = session?.user || null; });
 }
 loadPublicPets();
+showOAuthError();
 })();

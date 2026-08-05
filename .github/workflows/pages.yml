@@ -31,7 +31,7 @@ jobs:
           cp index.html styles.css app.js supabase-config.example.js _site/
           cp -r public _site/public
           if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
-            printf 'window.SUPABASE_CONFIG={url:"%s",anonKey:"%s",redirectUrl:window.location.href.split("#")[0]};\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > _site/supabase-config.js
+            printf 'window.SUPABASE_CONFIG={url:"%s",anonKey:"%s",redirectUrl:"https://androimaster.github.io/petmemory/"};\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > _site/supabase-config.js
           else
             cp supabase-config.example.js _site/supabase-config.js
           fi
