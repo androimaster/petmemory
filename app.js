@@ -249,7 +249,7 @@ async function openMemorial(petId) {
 
   detail.innerHTML = `<header class="detail-hero" style="--cover:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=1200&q=80")}')"><span>${memorialVisibility(pet)}</span><h2>${escapeHtml(pet.name)}</h2><p>${escapeHtml(pet.breed || "사랑스러운 반려견")} · ${year(pet.born_on)} — ${year(pet.passed_on)}</p><div class="detail-creator">생성자 <b>${escapeHtml(creatorName)}</b></div></header>
     <section class="detail-story"><span class="eyebrow">우리 아이 이야기</span><p>${escapeHtml(pet.story || "함께한 소중한 순간을 오래 기억합니다.")}</p></section>
-    <section class="detail-section"><div class="detail-title"><div><span class="eyebrow">사진과 영상</span><h3>함께한 순간</h3></div>${isOwner ? '<form id="detailMediaForm"><label class="secondary small">사진 추가<input name="media" type="file" accept="image/*,video/*" multiple required></label></form>' : ""}</div><div class="detail-gallery">${gallery}</div></section>
+    <section class="detail-section"><div class="detail-title"><div><span class="eyebrow">사진과 영상</span><h3>함께한 순간</h3></div>${isOwner ? '<form id="detailMediaForm"><label class="secondary small">사진 추가<input name="media" type="file" accept="image/*,video/*" multiple required></label></form>' : '<span class="media-permission">🔒 생성자만 사진을 추가할 수 있어요</span>'}</div><div class="detail-gallery">${gallery}</div></section>
     <section class="detail-section guestbook"><div class="detail-title"><div><span class="eyebrow">함께 기억해요</span><h3>방명록</h3></div><small>${entries.length}개의 마음</small></div>${guestbookForm}<div class="guestbook-list">${guestbook}</div></section>`;
 
   $("#detailMediaForm")?.addEventListener("change", async event => {

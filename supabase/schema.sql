@@ -67,7 +67,11 @@ create policy "owners delete pets" on public.pets for delete using (auth.uid() =
 create policy "public media metadata or own read" on public.pet_media for select using (
   auth.uid() = owner_id or exists(select 1 from public.pets where pets.id = pet_id and pets.is_public)
 );
-create policy "owners create media" on public.pet_media for insert with check (auth.uid() = owner_id);
+create policy "owners create media" on public.pet_media for insert with check (
+  auth.uid() = owner_id and exists(
+    select 1 from public.pets where pets.id = pet_media.pet_id and pets.owner_id = auth.uid()
+  )
+);
 create policy "owners delete media" on public.pet_media for delete using (auth.uid() = owner_id);
 create policy "visible memorial guestbook read" on public.guestbook_entries for select using (
   exists(select 1 from public.pets where pets.id = pet_id and (pets.is_public or pets.owner_id = auth.uid()))
@@ -86,7 +90,14 @@ insert into storage.buckets(id, name, public, file_size_limit, allowed_mime_type
 values ('pet-media','pet-media',false,104857600,array['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','video/quicktime'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
-create policy "owners upload pet media" on storage.objects for insert to authenticated with check (bucket_id = 'pet-media' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "owners upload pet media" on storage.objects for insert to authenticated with check (
+  bucket_id = 'pet-media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+  and exists(
+    select 1 from public.pets
+    where pets.id::text = (storage.foldername(name))[2] and pets.owner_id = auth.uid()
+  )
+);
 create policy "authorized reads pet media" on storage.objects for select using (
   bucket_id = 'pet-media' and (
     (storage.foldername(name))[1] = auth.uid()::text

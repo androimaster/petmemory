@@ -12,3 +12,4 @@
 .hero-photo{background-image:url("public/hero-dog.png");background-position:center 52%}
 .feature-notice{display:grid;gap:6px;text-align:center;padding:20px;color:#7b6b50;background:#fbf3e4;border:1px solid #ead8b7;border-radius:8px;font-size:12px}.feature-notice b{color:#6c5430}.feature-notice span{line-height:1.6}
 .pet-info>.creator-info{display:flex;align-items:center;gap:6px;margin-top:8px;color:#77827a;font-size:10px}.pet-info>.creator-info span{padding:3px 6px;border-radius:999px;background:#edf1ec;font-size:8px;font-weight:700}.pet-info>.creator-info b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#536158;font-size:10px}.detail-creator{width:max-content;margin-top:13px;padding:8px 12px;border-radius:999px;background:#17231c99;color:#e3e9e4;font-size:11px}.detail-creator b{margin-left:5px;color:white}
+.media-permission{color:#7d877f;font-size:10px;font-weight:700}

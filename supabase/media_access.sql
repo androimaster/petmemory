@@ -11,12 +11,24 @@ for select using (
 
 drop policy if exists "owners create media" on public.pet_media;
 create policy "owners create media" on public.pet_media
-for insert to authenticated with check (auth.uid() = owner_id);
+for insert to authenticated with check (
+  auth.uid() = owner_id
+  and exists(
+    select 1 from public.pets
+    where pets.id = pet_media.pet_id and pets.owner_id = auth.uid()
+  )
+);
 
 drop policy if exists "owners upload pet media" on storage.objects;
 create policy "owners upload pet media" on storage.objects
 for insert to authenticated with check (
-  bucket_id = 'pet-media' and (storage.foldername(name))[1] = auth.uid()::text
+  bucket_id = 'pet-media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+  and exists(
+    select 1 from public.pets
+    where pets.id::text = (storage.foldername(name))[2]
+      and pets.owner_id = auth.uid()
+  )
 );
 
 drop policy if exists "authorized reads pet media" on storage.objects;
