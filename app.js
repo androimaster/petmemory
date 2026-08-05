@@ -11,6 +11,7 @@ const configured = Boolean(config.url && config.anonKey && !config.url.includes(
 const sbClient = configured ? window.supabase.createClient(config.url, config.anonKey) : null;
 let currentUser = null;
 let publicPets = [];
+let petLoadSequence = 0;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -55,6 +56,7 @@ async function initializeAuth() {
   sbClient.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     updateAuthUI(currentUser);
+    loadVisiblePets();
   });
 
   const hash = new URLSearchParams(location.hash.slice(1));
@@ -73,6 +75,7 @@ async function initializeAuth() {
     }
     currentUser = data.session?.user || null;
     updateAuthUI(currentUser);
+    loadVisiblePets();
     history.replaceState(null, "", location.pathname + location.search);
     return;
   }
@@ -81,20 +84,31 @@ async function initializeAuth() {
   if (error) toast(`로그인 확인 오류: ${error.message}`);
   currentUser = data.session?.user || null;
   updateAuthUI(currentUser);
+  loadVisiblePets();
 }
 
 function renderPets(items) {
   const grid = $("#memorialGrid");
   $("#resultCount").textContent = `${items.length}명의 친구`;
   if (!items.length) { grid.innerHTML = '<div class="empty">✦<h3>아직 만난 친구가 없어요</h3><p>다른 이름이나 견종으로 검색해 보세요.</p></div>'; return; }
-  grid.innerHTML = items.map((pet) => `<article class="pet-card"><div class="pet-photo" style="background-image:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=900&q=80")}')"><span>공개</span></div><div class="pet-info"><div><h3>${escapeHtml(pet.name)}</h3><small>${year(pet.born_on)} — ${year(pet.passed_on)}</small></div><p>${escapeHtml(pet.story || "소중한 기억이 별처럼 머물고 있어요.")}</p><footer><span>#${escapeHtml(pet.breed || "반려견")}</span><button data-star="${pet.id}">✦ 별 남기기</button></footer></div></article>`).join("");
+  grid.innerHTML = items.map((pet) => {
+    const isMine = Boolean(currentUser && pet.owner_id === currentUser.id);
+    const visibility = isMine ? `내 추모관 · ${pet.is_public ? "공개" : "비공개"}` : "공개";
+    return `<article class="pet-card"><div class="pet-photo" style="background-image:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=900&q=80")}')"><span>${visibility}</span></div><div class="pet-info"><div><h3>${escapeHtml(pet.name)}</h3><small>${year(pet.born_on)} — ${year(pet.passed_on)}</small></div><p>${escapeHtml(pet.story || "소중한 기억이 별처럼 머물고 있어요.")}</p><footer><span>#${escapeHtml(pet.breed || "반려견")}</span><button data-star="${pet.id}">${isMine ? "추모관 관리 →" : "✦ 별 남기기"}</button></footer></div></article>`;
+  }).join("");
 }
 
 function escapeHtml(value="") { const el = document.createElement("div"); el.textContent = value; return el.innerHTML.replaceAll("'", "&#39;"); }
 
-async function loadPublicPets() {
+async function loadVisiblePets() {
+  const loadId = ++petLoadSequence;
   if (!sbClient) { publicPets = demoPets; renderPets(publicPets); return; }
-  const { data, error } = await sbClient.from("pets").select("id,name,breed,born_on,passed_on,story,cover_path").eq("is_public", true).order("created_at", { ascending:false }).limit(40);
+  let query = sbClient.from("pets").select("id,owner_id,name,breed,born_on,passed_on,story,cover_path,is_public");
+  query = currentUser
+    ? query.or(`is_public.eq.true,owner_id.eq.${currentUser.id}`)
+    : query.eq("is_public", true);
+  const { data, error } = await query.order("created_at", { ascending:false }).limit(40);
+  if (loadId !== petLoadSequence) return;
   if (error) { console.error(error); publicPets = demoPets; toast("Supabase 연결을 확인해 주세요. 예시 추모관을 보여드려요."); } else {
     publicPets = await Promise.all(data.map(async pet => {
       if (!pet.cover_path) return pet;
@@ -138,7 +152,7 @@ async function createPet(event) {
     await sbClient.from("pet_media").insert({ pet_id:petId, owner_id:currentUser.id, storage_path:path, media_type:file.type.startsWith("video/") ? "video" : "image", file_name:file.name, file_size:file.size, sort_order:index });
   }
   if (coverUrl) await sbClient.from("pets").update({ cover_path:coverUrl }).eq("id", petId);
-  progress.hidden = true; form.reset(); $("#petDialog").close(); toast("소중한 추모관이 만들어졌어요."); loadPublicPets();
+  progress.hidden = true; form.reset(); $("#petDialog").close(); toast("소중한 추모관이 만들어졌어요."); loadVisiblePets();
 }
 
 $("#searchInput").addEventListener("input", (event) => { const q = event.target.value.trim().toLowerCase(); renderPets(publicPets.filter(p => [p.name,p.breed].some(v => (v || "").toLowerCase().includes(q)))); });
@@ -161,7 +175,7 @@ if (sbClient) {
   initializeAuth();
 } else {
   updateAuthUI(null);
+  loadVisiblePets();
 }
-loadPublicPets();
 showOAuthError();
 })();
