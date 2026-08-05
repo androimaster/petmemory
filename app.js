@@ -51,6 +51,38 @@ function showOAuthError() {
   history.replaceState(null, "", location.pathname + location.search);
 }
 
+async function initializeAuth() {
+  sbClient.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+    updateAuthUI(currentUser);
+  });
+
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const accessToken = hash.get("access_token");
+  const refreshToken = hash.get("refresh_token");
+
+  if (accessToken && refreshToken) {
+    const { data, error } = await sbClient.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) {
+      toast(`로그인 세션 오류: ${error.message}`);
+      updateAuthUI(null);
+      return;
+    }
+    currentUser = data.session?.user || null;
+    updateAuthUI(currentUser);
+    history.replaceState(null, "", location.pathname + location.search);
+    return;
+  }
+
+  const { data, error } = await sbClient.auth.getSession();
+  if (error) toast(`로그인 확인 오류: ${error.message}`);
+  currentUser = data.session?.user || null;
+  updateAuthUI(currentUser);
+}
+
 function renderPets(items) {
   const grid = $("#memorialGrid");
   $("#resultCount").textContent = `${items.length}명의 친구`;
@@ -126,14 +158,7 @@ $$('[data-close]').forEach(button => button.addEventListener("click", () => butt
 $$('dialog').forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); }));
 
 if (sbClient) {
-  sbClient.auth.getSession().then(({ data }) => {
-    currentUser = data.session?.user || null;
-    updateAuthUI(currentUser);
-  });
-  sbClient.auth.onAuthStateChange((_event, session) => {
-    currentUser = session?.user || null;
-    updateAuthUI(currentUser);
-  });
+  initializeAuth();
 } else {
   updateAuthUI(null);
 }
