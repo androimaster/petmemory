@@ -54,11 +54,26 @@ function showOAuthError() {
   history.replaceState(null, "", location.pathname + location.search);
 }
 
+async function ensureUserProfile(user) {
+  if (!user) return false;
+  const { data, error } = await sbClient.from("profiles").select("id").eq("id", user.id).maybeSingle();
+  if (error) { console.warn("프로필 확인 오류", error); return false; }
+  if (data) return true;
+  const metadata = user.user_metadata || {};
+  const displayName = metadata.full_name || metadata.name || user.email || "별빛 회원";
+  const { error: insertError } = await sbClient.from("profiles").insert({ id:user.id, display_name:displayName });
+  if (insertError) { console.warn("프로필 생성 오류", insertError); return false; }
+  return true;
+}
+
 async function initializeAuth() {
   sbClient.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     updateAuthUI(currentUser);
-    loadVisiblePets();
+    setTimeout(async () => {
+      await ensureUserProfile(currentUser);
+      await loadVisiblePets();
+    }, 0);
   });
 
   const hash = new URLSearchParams(location.hash.slice(1));
@@ -77,7 +92,8 @@ async function initializeAuth() {
     }
     currentUser = data.session?.user || null;
     updateAuthUI(currentUser);
-    loadVisiblePets();
+    await ensureUserProfile(currentUser);
+    await loadVisiblePets();
     history.replaceState(null, "", location.pathname + location.search);
     return;
   }
@@ -86,7 +102,8 @@ async function initializeAuth() {
   if (error) toast(`로그인 확인 오류: ${error.message}`);
   currentUser = data.session?.user || null;
   updateAuthUI(currentUser);
-  loadVisiblePets();
+  await ensureUserProfile(currentUser);
+  await loadVisiblePets();
 }
 
 function renderPets(items) {
@@ -105,11 +122,9 @@ function escapeHtml(value="") { const el = document.createElement("div"); el.tex
 async function loadVisiblePets() {
   const loadId = ++petLoadSequence;
   if (!sbClient) { publicPets = demoPets; renderPets(publicPets); return; }
-  let query = sbClient.from("pets").select("id,owner_id,name,breed,born_on,passed_on,story,cover_path,is_public");
-  query = currentUser
-    ? query.or(`is_public.eq.true,owner_id.eq.${currentUser.id}`)
-    : query.eq("is_public", true);
-  const { data, error } = await query.order("created_at", { ascending:false }).limit(40);
+  const { data, error } = await sbClient.from("pets")
+    .select("id,owner_id,name,breed,born_on,passed_on,story,cover_path,is_public")
+    .order("created_at", { ascending:false }).limit(40);
   if (loadId !== petLoadSequence) return;
   if (error) { console.error(error); publicPets = demoPets; toast("Supabase 연결을 확인해 주세요. 예시 추모관을 보여드려요."); } else {
     publicPets = await Promise.all(data.map(async pet => {
@@ -233,26 +248,84 @@ async function createPet(event) {
   event.preventDefault();
   if (!sbClient || !currentUser) { toast("Supabase 연결 후 실제 저장이 시작됩니다."); return; }
   const form = event.currentTarget; const formData = new FormData(form); const files = formData.getAll("media").filter(file => file.size);
-  const progress = $("#uploadProgress"); progress.hidden = false;
+  const progress = $("#uploadProgress");
+  const errorBox = $("#petFormError");
+  const submitButton = $("#createPetButton");
+  errorBox.hidden = true;
+  progress.hidden = false;
+  submitButton.disabled = true;
+  submitButton.textContent = "추모관을 만들고 있어요…";
   const petId = crypto.randomUUID();
   const pet = { id:petId, owner_id:currentUser.id, name:formData.get("name"), breed:formData.get("breed") || null, born_on:formData.get("born_on") || null, passed_on:formData.get("passed_on") || null, story:formData.get("story") || null, is_public:formData.get("is_public") === "on" };
+  const profileReady = await ensureUserProfile(currentUser);
+  if (!profileReady) {
+    progress.hidden = true;
+    submitButton.disabled = false;
+    submitButton.textContent = "추모관 만들기";
+    errorBox.textContent = "회원 정보를 준비하지 못했습니다. 잠시 후 다시 시도하거나 관리자에게 알려 주세요.";
+    errorBox.hidden = false;
+    return;
+  }
   const { error: petError } = await sbClient.from("pets").insert(pet);
-  if (petError) { progress.hidden = true; toast(petError.message); return; }
+  if (petError) {
+    progress.hidden = true;
+    submitButton.disabled = false;
+    submitButton.textContent = "추모관 만들기";
+    const limitError = /row-level security|policy|limit/i.test(petError.message);
+    errorBox.textContent = limitError ? "무료 계정은 추모관 1개까지 만들 수 있어요. 이미 등록한 추모관이 있는지 확인해 주세요." : `추모관을 만들지 못했습니다: ${petError.message}`;
+    errorBox.hidden = false;
+    return;
+  }
+  const firstImage = files.find(file => file.type.startsWith("image/"));
+  const previewCover = firstImage ? URL.createObjectURL(firstImage) : null;
   progress.hidden = true;
+  submitButton.disabled = false;
+  submitButton.textContent = "추모관 만들기";
   form.reset();
+  clearMediaPreview();
   $("#petDialog").close();
-  publicPets = [{ ...pet, cover_url:null }, ...publicPets.filter(item => item.id !== petId)];
+  publicPets = [{ ...pet, cover_url:previewCover }, ...publicPets.filter(item => item.id !== petId)];
   renderPets(publicPets);
   location.hash = "memorials";
   toast(files.length ? "추모관을 만들었어요. 사진을 이어서 등록하고 있어요." : "소중한 추모관이 만들어졌어요.");
   const coverPath = await uploadPetFiles(petId, files);
   if (coverPath) await sbClient.from("pets").update({ cover_path:coverPath }).eq("id", petId);
   await loadVisiblePets();
+  if (previewCover) URL.revokeObjectURL(previewCover);
+}
+
+let previewUrls = [];
+function clearMediaPreview() {
+  previewUrls.forEach(url => URL.revokeObjectURL(url));
+  previewUrls = [];
+  const preview = $("#mediaPreview");
+  preview.innerHTML = "";
+  preview.hidden = true;
+}
+
+function renderMediaPreview(files) {
+  clearMediaPreview();
+  if (!files.length) return;
+  const preview = $("#mediaPreview");
+  preview.innerHTML = files.map(file => {
+    const url = URL.createObjectURL(file);
+    previewUrls.push(url);
+    return file.type.startsWith("video/")
+      ? `<figure><video src="${url}" muted controls preload="metadata"></video><figcaption>${escapeHtml(file.name)}</figcaption></figure>`
+      : `<figure><img src="${url}" alt="${escapeHtml(file.name)} 미리보기"><figcaption>${escapeHtml(file.name)}</figcaption></figure>`;
+  }).join("");
+  preview.hidden = false;
 }
 
 $("#searchInput").addEventListener("input", (event) => { const q = event.target.value.trim().toLowerCase(); renderPets(publicPets.filter(p => [p.name,p.breed].some(v => (v || "").toLowerCase().includes(q)))); });
 $("#googleLogin").addEventListener("click", signInWithGoogle);
 $("#petForm").addEventListener("submit", createPet);
+$("#petMediaInput").addEventListener("change", event => renderMediaPreview([...event.target.files]));
+$("#petDialog").addEventListener("close", () => {
+  clearMediaPreview();
+  $("#petFormError").hidden = true;
+  $("#uploadProgress").hidden = true;
+});
 $("#memorialGrid").addEventListener("click", event => {
   const target = event.target.closest("[data-open-memorial], [data-pet-card]");
   if (target) openMemorial(target.dataset.openMemorial || target.dataset.petCard);

@@ -50,6 +50,7 @@ alter table public.pet_media enable row level security;
 alter table public.guestbook_entries enable row level security;
 
 create policy "profiles own read" on public.profiles for select using (auth.uid() = id);
+create policy "profiles own insert" on public.profiles for insert with check (auth.uid() = id);
 create policy "profiles own update" on public.profiles for update using (auth.uid() = id);
 create policy "public pets or own pets read" on public.pets for select using (is_public or auth.uid() = owner_id);
 create policy "owners create pets within plan limit" on public.pets for insert with check (

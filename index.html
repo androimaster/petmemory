@@ -8,11 +8,11 @@
   <meta property="og:description" content="함께한 모든 순간이 별처럼 빛나도록">
   <meta property="og:image" content="public/og.png">
   <title>별이 된 친구 | 반려견 온라인 추모관</title>
-  <link rel="stylesheet" href="styles.css?v=20260805-3">
+  <link rel="stylesheet" href="styles.css?v=20260805-4">
   <link rel="stylesheet" href="account.css?v=20260805-3">
   <script src="supabase-config.example.js" defer></script>
   <script src="supabase-config.js" defer onerror="this.remove()"></script>
-  <script src="app.js?v=20260805-9" type="module"></script>
+  <script src="app.js?v=20260805-10" type="module"></script>
 </head>
 <body>
   <header class="site-header">
@@ -63,7 +63,7 @@
 
   <dialog id="authDialog" class="modal"><button class="close" data-close>×</button><span class="paw">●</span><span class="eyebrow">다시 만나 반가워요</span><h2>구글 계정으로<br>간편하게 시작하세요</h2><p>첫 번째 반려견 추모관은 무료예요.</p><button class="google" id="googleLogin"><b>G</b> Google 계정으로 계속</button><small>로그인하면 이용약관과 개인정보처리방침에 동의하게 됩니다.</small></dialog>
 
-  <dialog id="petDialog" class="modal pet-modal"><button class="close" data-close>×</button><span class="eyebrow">새로운 별 기록하기</span><h2>우리 아이를 소개해 주세요</h2><form id="petForm"><label>이름<input name="name" required maxlength="30" placeholder="예: 몽이"></label><label>견종<input name="breed" maxlength="50" placeholder="예: 말티즈"></label><div class="form-row"><label>태어난 날<input name="born_on" type="date"></label><label>별이 된 날<input name="passed_on" type="date"></label></div><label>우리 아이 이야기<textarea name="story" rows="4" maxlength="1000" placeholder="함께한 소중한 이야기를 남겨주세요"></textarea></label><label>사진·영상<input name="media" type="file" accept="image/*,video/*" multiple></label><label class="switch"><input name="is_public" type="checkbox"> 공개 추모관으로 만들기</label><div id="uploadProgress" class="progress" hidden><i></i><span>기억을 안전하게 보관하고 있어요…</span></div><button class="primary full" type="submit">추모관 만들기</button></form></dialog>
+  <dialog id="petDialog" class="modal pet-modal"><button class="close" data-close>×</button><span class="eyebrow">새로운 별 기록하기</span><h2>우리 아이를 소개해 주세요</h2><form id="petForm"><label>이름<input name="name" required maxlength="30" placeholder="예: 몽이"></label><label>견종<input name="breed" maxlength="50" placeholder="예: 말티즈"></label><div class="form-row"><label>태어난 날<input name="born_on" type="date"></label><label>별이 된 날<input name="passed_on" type="date"></label></div><label>우리 아이 이야기<textarea name="story" rows="4" maxlength="1000" placeholder="함께한 소중한 이야기를 남겨주세요"></textarea></label><label>사진·영상<input id="petMediaInput" name="media" type="file" accept="image/*,video/*" multiple></label><div id="mediaPreview" class="media-preview" hidden></div><label class="switch"><input name="is_public" type="checkbox"> 공개 추모관으로 만들기</label><p id="petFormError" class="form-error" role="alert" hidden></p><div id="uploadProgress" class="progress" hidden><i></i><span>기억을 안전하게 보관하고 있어요…</span></div><button class="primary full" id="createPetButton" type="submit">추모관 만들기</button></form></dialog>
 
   <dialog id="upgradeDialog" class="modal"><button class="close" data-close>×</button><span class="eyebrow">별빛 플러스</span><h2>모든 아이의 기억을<br>한곳에 간직하세요</h2><p>무료 계정은 반려견 한 마리까지 등록할 수 있어요. 플러스에서는 최대 10마리를 추모할 수 있습니다.</p><button class="primary full" id="upgradeButton">연 39,000원으로 시작</button><small>결제 연결 전에는 요금 안내만 제공됩니다.</small></dialog>
 
