@@ -19,6 +19,12 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const toast = (message) => { const el = $("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("show"), 3200); };
 const year = (date) => date ? date.slice(0,4) : "";
+const userDisplayName = (user) => {
+  const metadata = user?.user_metadata || {};
+  return metadata.full_name || metadata.name || user?.email?.split("@")[0] || "별빛 보호자";
+};
+const isPetOwner = (pet) => Boolean(currentUser && String(pet.owner_id) === String(currentUser.id));
+const memorialVisibility = (pet) => isPetOwner(pet) ? (pet.is_public ? "내 추모관" : "내 추모관(비공개)") : "공개 추모관";
 
 function updateAuthUI(user) {
   const loginButton = $("#loginButton");
@@ -31,7 +37,7 @@ function updateAuthUI(user) {
   }
 
   const metadata = user.user_metadata || {};
-  const name = metadata.full_name || metadata.name || user.email?.split("@")[0] || "회원";
+  const name = userDisplayName(user);
   loginButton.hidden = true;
   account.hidden = false;
   $("#userName").textContent = name;
@@ -111,9 +117,10 @@ function renderPets(items) {
   $("#resultCount").textContent = `${items.length}명의 친구`;
   if (!items.length) { grid.innerHTML = '<div class="empty">✦<h3>아직 만난 친구가 없어요</h3><p>다른 이름이나 견종으로 검색해 보세요.</p></div>'; return; }
   grid.innerHTML = items.map((pet) => {
-    const isMine = Boolean(currentUser && pet.owner_id === currentUser.id);
-    const visibility = isMine ? `내 추모관 · ${pet.is_public ? "공개" : "비공개"}` : "공개";
-    return `<article class="pet-card" data-pet-card="${pet.id}" tabindex="0" role="button" aria-label="${escapeHtml(pet.name)} 추모관 보기"><div class="pet-photo" style="background-image:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=900&q=80")}')"><span>${visibility}</span></div><div class="pet-info"><div><h3>${escapeHtml(pet.name)}</h3><small>${year(pet.born_on)} — ${year(pet.passed_on)}</small></div><p>${escapeHtml(pet.story || "소중한 기억이 별처럼 머물고 있어요.")}</p><footer><span>#${escapeHtml(pet.breed || "반려견")}</span><button type="button" data-open-memorial="${pet.id}">${isMine ? "추모관 관리 →" : "추모관 보기 →"}</button></footer></div></article>`;
+    const isMine = isPetOwner(pet);
+    const visibility = memorialVisibility(pet);
+    const creatorName = pet.creator_name || (isMine ? userDisplayName(currentUser) : "별빛 보호자");
+    return `<article class="pet-card" data-pet-card="${pet.id}" tabindex="0" role="button" aria-label="${escapeHtml(pet.name)} 추모관 보기"><div class="pet-photo" style="background-image:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=900&q=80")}')"><span>${visibility}</span></div><div class="pet-info"><div><h3>${escapeHtml(pet.name)}</h3><small>${year(pet.born_on)} — ${year(pet.passed_on)}</small></div><div class="creator-info"><span>생성자</span><b>${escapeHtml(creatorName)}</b></div><p>${escapeHtml(pet.story || "소중한 기억이 별처럼 머물고 있어요.")}</p><footer><span>#${escapeHtml(pet.breed || "반려견")}</span><button type="button" data-open-memorial="${pet.id}">${isMine ? "추모관 관리 →" : "추모관 보기 →"}</button></footer></div></article>`;
   }).join("");
 }
 
@@ -122,9 +129,14 @@ function escapeHtml(value="") { const el = document.createElement("div"); el.tex
 async function loadVisiblePets() {
   const loadId = ++petLoadSequence;
   if (!sbClient) { publicPets = demoPets; renderPets(publicPets); return; }
-  const { data, error } = await sbClient.from("pets")
-    .select("id,owner_id,name,breed,born_on,passed_on,story,cover_path,is_public")
+  let { data, error } = await sbClient.from("pets")
+    .select("id,owner_id,creator_name,name,breed,born_on,passed_on,story,cover_path,is_public")
     .order("created_at", { ascending:false }).limit(40);
+  if (error && /creator_name|column/i.test(error.message)) {
+    ({ data, error } = await sbClient.from("pets")
+      .select("id,owner_id,name,breed,born_on,passed_on,story,cover_path,is_public")
+      .order("created_at", { ascending:false }).limit(40));
+  }
   if (loadId !== petLoadSequence) return;
   if (error) { console.error(error); publicPets = demoPets; toast("Supabase 연결을 확인해 주세요. 예시 추모관을 보여드려요."); } else {
     publicPets = await Promise.all(data.map(async pet => {
@@ -216,7 +228,8 @@ async function openMemorial(petId) {
     })).then(items => items.filter(item => item.url));
   }
 
-  const isOwner = Boolean(currentUser && pet.owner_id === currentUser.id);
+  const isOwner = isPetOwner(pet);
+  const creatorName = pet.creator_name || (isOwner ? userDisplayName(currentUser) : "별빛 보호자");
   const gallery = media.length ? media.map(item => item.media_type === "video"
     ? `<video controls preload="metadata" src="${escapeHtml(item.url)}" aria-label="${escapeHtml(item.file_name)}"></video>`
     : `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(pet.name)}의 추억 사진">`).join("")
@@ -231,7 +244,7 @@ async function openMemorial(petId) {
       ? '<form id="guestbookForm" class="guestbook-form"><label for="guestbookMessage">방명록 남기기</label><textarea id="guestbookMessage" name="message" maxlength="500" required placeholder="따뜻한 마음을 전해 주세요"></textarea><button class="primary small" type="submit">마음 남기기</button></form>'
       : '<button class="secondary full" type="button" data-detail-login>로그인하고 방명록 남기기</button>';
 
-  detail.innerHTML = `<header class="detail-hero" style="--cover:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=1200&q=80")}')"><span>${isOwner ? "내 추모관" : "별빛 추모관"}</span><h2>${escapeHtml(pet.name)}</h2><p>${escapeHtml(pet.breed || "사랑스러운 반려견")} · ${year(pet.born_on)} — ${year(pet.passed_on)}</p></header>
+  detail.innerHTML = `<header class="detail-hero" style="--cover:url('${escapeHtml(pet.cover_url || "https://images.unsplash.com/photo-1558788353-f76d92427f16?auto=format&fit=crop&w=1200&q=80")}')"><span>${memorialVisibility(pet)}</span><h2>${escapeHtml(pet.name)}</h2><p>${escapeHtml(pet.breed || "사랑스러운 반려견")} · ${year(pet.born_on)} — ${year(pet.passed_on)}</p><div class="detail-creator">생성자 <b>${escapeHtml(creatorName)}</b></div></header>
     <section class="detail-story"><span class="eyebrow">우리 아이 이야기</span><p>${escapeHtml(pet.story || "함께한 소중한 순간을 오래 기억합니다.")}</p></section>
     <section class="detail-section"><div class="detail-title"><div><span class="eyebrow">사진과 영상</span><h3>함께한 순간</h3></div>${isOwner ? '<form id="detailMediaForm"><label class="secondary small">사진 추가<input name="media" type="file" accept="image/*,video/*" multiple required></label></form>' : ""}</div><div class="detail-gallery">${gallery}</div></section>
     <section class="detail-section guestbook"><div class="detail-title"><div><span class="eyebrow">함께 기억해요</span><h3>방명록</h3></div><small>${entries.length}개의 마음</small></div>${guestbookForm}<div class="guestbook-list">${guestbook}</div></section>`;
@@ -272,7 +285,7 @@ async function createPet(event) {
   submitButton.disabled = true;
   submitButton.textContent = "추모관을 만들고 있어요…";
   const petId = crypto.randomUUID();
-  const pet = { id:petId, owner_id:currentUser.id, name:formData.get("name"), breed:formData.get("breed") || null, born_on:formData.get("born_on") || null, passed_on:formData.get("passed_on") || null, story:formData.get("story") || null, is_public:formData.get("is_public") === "on" };
+  const pet = { id:petId, owner_id:currentUser.id, creator_name:userDisplayName(currentUser), name:formData.get("name"), breed:formData.get("breed") || null, born_on:formData.get("born_on") || null, passed_on:formData.get("passed_on") || null, story:formData.get("story") || null, is_public:formData.get("is_public") === "on" };
   const profileReady = await ensureUserProfile(currentUser);
   if (!profileReady) {
     progress.hidden = true;
@@ -282,7 +295,12 @@ async function createPet(event) {
     errorBox.hidden = false;
     return;
   }
-  const { error: petError } = await sbClient.from("pets").insert(pet);
+  let { error: petError } = await sbClient.from("pets").insert(pet);
+  if (petError && /creator_name|column/i.test(petError.message)) {
+    const legacyPet = { ...pet };
+    delete legacyPet.creator_name;
+    ({ error:petError } = await sbClient.from("pets").insert(legacyPet));
+  }
   if (petError) {
     progress.hidden = true;
     submitButton.disabled = false;

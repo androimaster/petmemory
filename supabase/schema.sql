@@ -11,6 +11,7 @@ create table if not exists public.profiles (
 create table if not exists public.pets (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references public.profiles(id) on delete cascade,
+  creator_name text check (creator_name is null or char_length(creator_name) between 1 and 80),
   name text not null check (char_length(name) between 1 and 30),
   breed text,
   born_on date,
