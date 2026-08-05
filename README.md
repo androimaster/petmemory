@@ -1,100 +1,26 @@
-# vinext-starter
+# 별이 된 친구
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+반려견 사진과 영상을 기록하고 공개 여부를 선택할 수 있는 온라인 추모관입니다. 브라우저에서 실행되는 HTML, CSS, JavaScript와 Supabase를 사용하며 GitHub Pages로 배포됩니다.
 
-## Prerequisites
+## Supabase 연결
 
-- Node.js `>=22.13.0`
+1. Supabase에서 새 프로젝트를 만듭니다.
+2. SQL Editor에서 `supabase/schema.sql` 전체를 실행합니다.
+3. Authentication → Providers에서 Google을 활성화합니다.
+4. 로컬에서는 `supabase-config.example.js`를 `supabase-config.js`로 복사한 후 Project URL과 anon public key를 입력합니다.
+5. Google Cloud와 Supabase의 허용된 Redirect URL에 로컬 주소 및 GitHub Pages 주소를 등록합니다.
 
-## Quick Start
+`anon` 키는 브라우저 사용을 전제로 한 공개 키입니다. 데이터 보호는 `supabase/schema.sql`의 Row Level Security 정책으로 처리되며 service role 키는 절대 브라우저나 GitHub Pages에 넣지 않습니다.
 
-```bash
-npm install
-npm run dev
-npm run build
-```
+## GitHub Pages 배포
 
-This starter does not use `wrangler.jsonc`.
+저장소 Settings → Secrets and variables → Actions → Variables에 아래 값을 추가합니다.
 
-## Included Shape
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+Settings → Pages → Source를 **GitHub Actions**로 선택합니다. `main` 브랜치에 push하면 `.github/workflows/pages.yml`이 정적 사이트를 배포합니다.
 
-## Workspace Auth Headers
+## 로컬 미리보기
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+정적 파일 서버로 프로젝트 루트를 열면 됩니다. `file://`로 직접 열면 OAuth 리디렉션이 동작하지 않을 수 있습니다.

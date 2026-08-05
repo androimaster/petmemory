@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="사랑하는 반려견의 사진과 이야기를 기록하고 오래도록 간직하는 온라인 추모 공간">
+  <meta property="og:title" content="별이 된 친구">
+  <meta property="og:description" content="함께한 모든 순간이 별처럼 빛나도록">
+  <meta property="og:image" content="public/og.png">
+  <title>별이 된 친구 | 반려견 온라인 추모관</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <script src="supabase-config.example.js" defer></script>
+  <script src="supabase-config.js" defer onerror="this.remove()"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top"><span class="paw">●</span><span>별이 된 친구</span></a>
+    <nav><a href="#memorials">추모관 둘러보기</a><a href="#how">이용 방법</a><a href="#plans">이용 요금</a></nav>
+    <div class="header-actions"><button class="ghost" data-action="login">로그인</button><button class="primary small" data-action="create">추모관 만들기</button></div>
+  </header>
+
+  <main>
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <span class="eyebrow">✦ 사랑은 사라지지 않으니까</span>
+        <h1>함께한 모든 순간이<br><em>별처럼 빛나도록</em></h1>
+        <p>사진과 영상, 따뜻한 이야기로 소중한 반려견의 삶을 기록하고 오래도록 간직하세요.</p>
+        <div class="actions"><button class="primary" data-action="create">우리 아이 추모관 만들기 →</button><a class="secondary" href="#memorials">다른 친구 만나보기</a></div>
+        <p class="trust"><b>첫 번째 추모관은 무료</b> · 반려견마다 공개 범위를 선택할 수 있어요</p>
+      </div>
+      <div class="hero-visual"><div class="hero-photo"></div><div class="note">“우리에게 와줘서 고마워.<br>영원히 사랑해, 별이야.”<small>2011. 04. 18 — 2025. 01. 07</small></div><span class="star">✦</span></div>
+    </section>
+
+    <section class="steps" id="how"><article><span>01</span><div><b>사진과 영상을 모아</b><p>흩어진 행복한 순간을 안전하게 보관해요</p></div></article><article><span>02</span><div><b>이야기를 남겨</b><p>우리 아이만의 따뜻한 기록을 만들어요</p></div></article><article><span>03</span><div><b>함께 기억해</b><p>공개 여부를 정하고 마음을 나눠요</p></div></article></section>
+
+    <section class="memorials section" id="memorials">
+      <div class="heading"><div><span class="eyebrow">별빛 추모관</span><h2>우리 곁에 머무는<br>소중한 친구들</h2></div><p>이름이나 견종으로 공개된 추모관을 찾아보세요.<br>따뜻한 별 하나를 남겨 마음을 전할 수 있어요.</p></div>
+      <div class="search"><label>⌕ <input id="searchInput" type="search" placeholder="이름, 견종으로 검색해 보세요"></label><span id="resultCount">불러오는 중…</span></div>
+      <div class="cards" id="memorialGrid" aria-live="polite"></div>
+    </section>
+
+    <section class="privacy"><div class="privacy-inner"><div class="lock">✦</div><div><span class="eyebrow">내가 정하는 공개 범위</span><h2>소중한 기억은<br>원하는 만큼만 나누세요</h2><p>반려견마다 공개 또는 비공개를 선택할 수 있어요. 비공개 추모관은 보호자만 볼 수 있고 검색 결과에도 나타나지 않습니다.</p><ul><li>✓ 반려견별 공개 설정</li><li>✓ 사진·영상 통합 보관</li><li>✓ 검색 노출 여부 선택</li></ul></div></div></section>
+
+    <section class="pricing section" id="plans">
+      <div class="pricing-head"><span class="eyebrow">이용 요금</span><h2>첫 번째 별은, 언제나 무료예요</h2><p>더 많은 친구를 기억하고 싶을 때 플러스로 업그레이드하세요.</p></div>
+      <div class="plans"><article class="plan"><span class="plan-icon">☆</span><h3>별빛 무료</h3><p>한 아이와의 추억을 오래 간직해요</p><div class="price">0원 <small>영원히</small></div><button class="secondary full" data-action="create">무료로 시작하기</button><ul><li>✓ 추모관 1개</li><li>✓ 사진·영상 1GB</li><li>✓ 공개·비공개 설정</li><li>✓ 추억 이야기 기록</li></ul></article><article class="plan featured"><span class="badge">추천</span><span class="plan-icon">✦</span><h3>별빛 플러스</h3><p>모든 아이의 이야기를 한곳에 모아요</p><div class="price">연 39,000원 <small>월 3,250원</small></div><button class="primary full" data-action="upgrade">플러스로 업그레이드</button><ul><li><b>✓ 추모관 최대 10개</b></li><li>✓ 사진·영상 20GB</li><li>✓ 고화질 원본 보관</li><li>✓ 광고 없이 온전히 추모</li></ul></article></div>
+    </section>
+
+    <section class="closing"><span class="paw">●</span><h2>사랑했던 만큼,<br><em>오래 기억할 수 있도록</em></h2><p>우리 아이와의 가장 빛나던 순간을 오늘 기록해 보세요.</p><button class="primary" data-action="create">무료 추모관 만들기 →</button></section>
+  </main>
+
+  <footer><a class="brand" href="#top"><span class="paw">●</span><span>별이 된 친구</span></a><p>반려동물과 함께한 사랑을 오래도록 기억하는 공간</p><small>© 2026 별이 된 친구</small></footer>
+
+  <dialog id="authDialog" class="modal"><button class="close" data-close>×</button><span class="paw">●</span><span class="eyebrow">다시 만나 반가워요</span><h2>구글 계정으로<br>간편하게 시작하세요</h2><p>첫 번째 반려견 추모관은 무료예요.</p><button class="google" id="googleLogin"><b>G</b> Google 계정으로 계속</button><small>로그인하면 이용약관과 개인정보처리방침에 동의하게 됩니다.</small></dialog>
+
+  <dialog id="petDialog" class="modal pet-modal"><button class="close" data-close>×</button><span class="eyebrow">새로운 별 기록하기</span><h2>우리 아이를 소개해 주세요</h2><form id="petForm"><label>이름<input name="name" required maxlength="30" placeholder="예: 몽이"></label><label>견종<input name="breed" maxlength="50" placeholder="예: 말티즈"></label><div class="form-row"><label>태어난 날<input name="born_on" type="date"></label><label>별이 된 날<input name="passed_on" type="date"></label></div><label>우리 아이 이야기<textarea name="story" rows="4" maxlength="1000" placeholder="함께한 소중한 이야기를 남겨주세요"></textarea></label><label>사진·영상<input name="media" type="file" accept="image/*,video/*" multiple></label><label class="switch"><input name="is_public" type="checkbox"> 공개 추모관으로 만들기</label><div id="uploadProgress" class="progress" hidden><i></i><span>기억을 안전하게 보관하고 있어요…</span></div><button class="primary full" type="submit">추모관 만들기</button></form></dialog>
+
+  <dialog id="upgradeDialog" class="modal"><button class="close" data-close>×</button><span class="eyebrow">별빛 플러스</span><h2>모든 아이의 기억을<br>한곳에 간직하세요</h2><p>무료 계정은 반려견 한 마리까지 등록할 수 있어요. 플러스에서는 최대 10마리를 추모할 수 있습니다.</p><button class="primary full" id="upgradeButton">연 39,000원으로 시작</button><small>결제 연결 전에는 요금 안내만 제공됩니다.</small></dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
