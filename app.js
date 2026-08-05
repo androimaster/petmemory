@@ -158,21 +158,24 @@ async function openCreateDialog() {
 
 async function uploadPetFiles(petId, files) {
   let coverPath = null;
+  let uploadedCount = 0;
+  const errors = [];
   for (let index = 0; index < files.length; index++) {
     const file = files[index];
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${currentUser.id}/${petId}/${crypto.randomUUID()}-${safeName}`;
     const { error: uploadError } = await sbClient.storage.from("pet-media").upload(path, file, { contentType:file.type, upsert:false });
-    if (uploadError) { toast(`${file.name} 업로드에 실패했어요.`); continue; }
+    if (uploadError) { errors.push(`${file.name}: ${uploadError.message}`); continue; }
+    uploadedCount += 1;
     const { error: metadataError } = await sbClient.from("pet_media").insert({
       pet_id:petId, owner_id:currentUser.id, storage_path:path,
       media_type:file.type.startsWith("video/") ? "video" : "image",
       file_name:file.name, file_size:file.size, sort_order:index,
     });
-    if (metadataError) console.error(metadataError);
+    if (metadataError) { console.error(metadataError); errors.push(`${file.name} 정보 저장 실패`); }
     if (!coverPath && file.type.startsWith("image/")) coverPath = path;
   }
-  return coverPath;
+  return { coverPath, uploadedCount, errors };
 }
 
 const displayDate = (value) => value ? new Intl.DateTimeFormat("ko-KR", { dateStyle:"medium" }).format(new Date(value)) : "";
@@ -189,28 +192,41 @@ async function openMemorial(petId) {
   let entries = [];
   let guestbookReady = true;
   if (sbClient && !pet.id.startsWith("demo-")) {
-    const [mediaResult, guestbookResult] = await Promise.all([
+    const storageFolder = `${pet.owner_id}/${pet.id}`;
+    const [mediaResult, storageResult, guestbookResult] = await Promise.all([
       sbClient.from("pet_media").select("id,storage_path,media_type,file_name,created_at").eq("pet_id", pet.id).order("sort_order"),
+      sbClient.storage.from("pet-media").list(storageFolder, { limit:100, sortBy:{ column:"created_at", order:"asc" } }),
       sbClient.from("guestbook_entries").select("id,author_id,author_name,message,created_at").eq("pet_id", pet.id).order("created_at", { ascending:false }).limit(50),
     ]);
     if (mediaResult.error) console.error(mediaResult.error);
+    if (storageResult.error) console.warn("저장소 목록 오류", storageResult.error);
     if (guestbookResult.error) { guestbookReady = false; console.warn(guestbookResult.error); }
     entries = guestbookResult.data || [];
-    media = await Promise.all((mediaResult.data || []).map(async item => {
+    const metadataItems = mediaResult.data || [];
+    const knownPaths = new Set(metadataItems.map(item => item.storage_path));
+    const recoveredItems = (storageResult.data || []).filter(item => item.name && item.id).map(item => {
+      const storagePath = `${storageFolder}/${item.name}`;
+      const extension = item.name.split(".").pop()?.toLowerCase();
+      const mediaType = ["mp4","webm","mov","m4v"].includes(extension) ? "video" : "image";
+      return { id:item.id, storage_path:storagePath, media_type:mediaType, file_name:item.name, created_at:item.created_at };
+    }).filter(item => !knownPaths.has(item.storage_path));
+    media = await Promise.all([...metadataItems, ...recoveredItems].map(async item => {
       const { data } = await sbClient.storage.from("pet-media").createSignedUrl(item.storage_path, 3600);
       return { ...item, url:data?.signedUrl || "" };
-    }));
+    })).then(items => items.filter(item => item.url));
   }
 
   const isOwner = Boolean(currentUser && pet.owner_id === currentUser.id);
   const gallery = media.length ? media.map(item => item.media_type === "video"
     ? `<video controls preload="metadata" src="${escapeHtml(item.url)}" aria-label="${escapeHtml(item.file_name)}"></video>`
     : `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(pet.name)}의 추억 사진">`).join("")
-    : '<div class="gallery-empty">아직 등록된 사진이 없어요.</div>';
+    : pet.cover_url
+      ? `<img src="${escapeHtml(pet.cover_url)}" alt="${escapeHtml(pet.name)}의 대표 사진">`
+      : '<div class="gallery-empty">아직 등록된 사진이 없어요.</div>';
   const guestbook = entries.length ? entries.map(entry => `<article><div><b>${escapeHtml(entry.author_name)}</b><time>${displayDate(entry.created_at)}</time></div><p>${escapeHtml(entry.message)}</p></article>`).join("")
     : '<p class="guestbook-empty">첫 번째 따뜻한 마음을 남겨 주세요.</p>';
   const guestbookForm = !guestbookReady
-    ? '<p class="feature-notice">방명록 준비가 필요합니다. 관리자에게 문의해 주세요.</p>'
+    ? '<div class="feature-notice"><b>방명록 기능을 활성화해야 합니다.</b><span>Supabase에서 guestbook.sql을 실행하면 작성 버튼이 표시됩니다.</span></div>'
     : currentUser
       ? '<form id="guestbookForm" class="guestbook-form"><label for="guestbookMessage">방명록 남기기</label><textarea id="guestbookMessage" name="message" maxlength="500" required placeholder="따뜻한 마음을 전해 주세요"></textarea><button class="primary small" type="submit">마음 남기기</button></form>'
       : '<button class="secondary full" type="button" data-detail-login>로그인하고 방명록 남기기</button>';
@@ -224,11 +240,11 @@ async function openMemorial(petId) {
     const files = [...event.currentTarget.elements.media.files];
     if (!files.length) return;
     toast("사진과 영상을 추가하고 있어요.");
-    const coverPath = await uploadPetFiles(pet.id, files);
-    if (coverPath && !pet.cover_path) await sbClient.from("pets").update({ cover_path:coverPath }).eq("id", pet.id);
+    const uploadResult = await uploadPetFiles(pet.id, files);
+    if (uploadResult.coverPath && !pet.cover_path) await sbClient.from("pets").update({ cover_path:uploadResult.coverPath }).eq("id", pet.id);
     await loadVisiblePets();
     await openMemorial(pet.id);
-    toast("새로운 추억을 추가했어요.");
+    toast(uploadResult.errors.length ? `${uploadResult.uploadedCount}개를 추가했고 일부 파일은 실패했어요.` : "새로운 추억을 추가했어요.");
   });
   $("#guestbookForm")?.addEventListener("submit", async event => {
     event.preventDefault();
@@ -288,9 +304,10 @@ async function createPet(event) {
   renderPets(publicPets);
   location.hash = "memorials";
   toast(files.length ? "추모관을 만들었어요. 사진을 이어서 등록하고 있어요." : "소중한 추모관이 만들어졌어요.");
-  const coverPath = await uploadPetFiles(petId, files);
-  if (coverPath) await sbClient.from("pets").update({ cover_path:coverPath }).eq("id", petId);
+  const uploadResult = await uploadPetFiles(petId, files);
+  if (uploadResult.coverPath) await sbClient.from("pets").update({ cover_path:uploadResult.coverPath }).eq("id", petId);
   await loadVisiblePets();
+  if (uploadResult.errors.length) toast(`추모관은 만들었지만 ${uploadResult.errors.length}개 파일을 저장하지 못했어요. 상세 화면에서 다시 추가해 주세요.`);
   if (previewCover) URL.revokeObjectURL(previewCover);
 }
 
